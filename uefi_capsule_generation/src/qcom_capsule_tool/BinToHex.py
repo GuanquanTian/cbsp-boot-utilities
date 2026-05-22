@@ -1,3 +1,8 @@
+# --------------------------------------------------------------------
+# Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+# --------------------------------------------------------------------
+
 def bin_to_hex(input_file, output_file):
     try:
         with open(input_file, "rb") as f:
