@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: BSD-3-Clause-Clear
 # --------------------------------------------------------------------
 
+import sys
+
+
 def bin_to_hex(input_file, output_file):
     try:
         with open(input_file, "rb") as f:
@@ -19,7 +22,8 @@ def bin_to_hex(input_file, output_file):
     for i in range(0, len(binary_data), 4):
         chunk = binary_data[i : i + 4]
         hex_chunk = "".join(f"{byte:02x}" for byte in chunk)
-        hex_chunks.append(hex_chunk.zfill(8))  # Ensure each chunk is 8 hex digits
+        # Ensure each chunk is 8 hex digits.
+        hex_chunks.append(hex_chunk.zfill(8))
 
     try:
         with open(output_file, "w") as f:
@@ -32,11 +36,10 @@ def bin_to_hex(input_file, output_file):
 
 
 def main():
-    import sys
-
     if len(sys.argv) != 3:
         print("Usage: qcom-capsule-tool bin-to-hex <input_file> <output_file>")
         sys.exit(1)
+
     bin_to_hex(sys.argv[1], sys.argv[2])
 
 
