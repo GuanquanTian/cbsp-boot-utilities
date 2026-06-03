@@ -83,6 +83,13 @@ def _cmd_parse_config(argv):
     main()
 
 
+def _cmd_patch_uefi_dtbs(argv):
+    sys.argv = ["qcom-capsule-tool patch-uefi-dtbs"] + argv
+    from qcom_capsule_tool.patch_uefi_dtbs import main
+
+    main()
+
+
 SUBCOMMANDS = {
     "setup": ("Set up edk2 build environment", _cmd_setup),
     "create": ("Run the full capsule generation pipeline", _cmd_create),
@@ -96,6 +103,10 @@ SUBCOMMANDS = {
     "bin-to-hex": ("Convert a binary file to hex format", _cmd_bin_to_hex),
     "set-dtb-property": ("Set or add a property in a DTB file", _cmd_set_dtb_property),
     "parse-config": ("Inspect or patch xbl_config.elf payloads", _cmd_parse_config),
+    "patch-uefi-dtbs": (
+        "Patch QcCapsuleRootCert in all DTBs of a uefi_dtbs ELF",
+        _cmd_patch_uefi_dtbs,
+    ),
 }
 
 

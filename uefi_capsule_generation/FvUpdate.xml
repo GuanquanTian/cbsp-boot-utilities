@@ -9,11 +9,10 @@
 
 **/
 
+#Hamoa_IOT.UBUN
+
 #FlashType
-  UFS
-  EMMC
-  NORNVME
-  NORUFS
+  SPINOR
 
 
 #Operation Type
@@ -23,16 +22,16 @@
 #DiskType
 =========                   =============
   UFS_LUN0                 (Not supported)
-  UFS_LUN1                 (Supported)
+  UFS_LUN1                 (Not Supported)
   UFS_LUN2                 (Not supported)
   UFS_LUN3                 (Not supported)
-  UFS_LUN4                 (Supported)
+  UFS_LUN4                 (Not Supported)
   UFS_LUN5                 (Not supported)
   UFS_LUN6                 (Not supported)
   UFS_LUN7                 (Not supported)
   SPINOR                   (Supported)
   NVME                     (Not supported)
-  EMMC_PARTITION_USER_DATA (Supported)
+  EMMC_PARTITION_USER_DATA (Not Supported)
 
 #UpdateType
   UPDATE_PARTITION
@@ -45,32 +44,32 @@
 
 -->
 <FVItems>
-<!--Sample Metadata configuration for UFS FlashTYpe-->
+<!--Sample Metadata configuration for SPINOR FlashTYpe-->
     <Metadata>
       <BreakingChangeNumber>0</BreakingChangeNumber>
-      <FlashType>UFS</FlashType>
+      <FlashType>NORUFS</FlashType>
     </Metadata>
 
-<!--BootLoader entries-->
-
-<!--Sample FwEntry for LUN1 XBL-->
+  <!--Sample FwEntry for LUN0 UEFI_DTB-->
   <FwEntry>
-    <InputBinary>xbl.elf</InputBinary>
+    <InputBinary>dtb.bin</InputBinary>
     <InputPath>Images</InputPath>
     <Operation>UPDATE</Operation>
     <UpdateType>UPDATE_PARTITION</UpdateType>
     <BackupType>BACKUP_PARTITION</BackupType>
     <Dest>
-      <DiskType>UFS_LUN1</DiskType>
-      <PartitionName>xbl_a</PartitionName>
-      <PartitionTypeGUID>{DEA0BA2C-CBDD-4805-B4F9-F428251C3E98}</PartitionTypeGUID>
+      <DiskType>SPINOR</DiskType>
+      <PartitionName>dtb_a</PartitionName>
+      <PartitionTypeGUID>{2A1A52FC-AA0B-401C-A808-5EA0F91068F8}</PartitionTypeGUID>
     </Dest>
     <Backup>
-       <DiskType>UFS_LUN1</DiskType>
-      <PartitionName>xbl_b</PartitionName>
-      <PartitionTypeGUID>{7A3DF1A3-A31A-454D-BD78-DF259ED486BE}</PartitionTypeGUID>
+       <DiskType>SPINOR</DiskType>
+      <PartitionName>dtb_b</PartitionName>
+      <PartitionTypeGUID>{A166F11A-2B39-4FAA-B7E7-F8AA080D0587}</PartitionTypeGUID>
     </Backup>
   </FwEntry>
+
+
 
 <!--Add FwEntries based on requirement-->
 
