@@ -275,9 +275,7 @@ def patch_uefi_dtbs(
     # so that a growing segment does not corrupt offsets used in later passes.
     elf0 = ELFFile(BytesIO(bytes(raw)))
     seg_indices_with_dtbs = [
-        i
-        for i, seg in enumerate(elf0.iter_segments())
-        if _scan_dtbs(seg.data())
+        i for i, seg in enumerate(elf0.iter_segments()) if _scan_dtbs(seg.data())
     ]
 
     results: List[dict] = []
@@ -347,9 +345,7 @@ def patch_uefi_dtbs(
 
             # Splice patched DTB back; Python bytearray handles size change.
             seg_data = (
-                seg_data[:dtb_off]
-                + bytearray(patched)
-                + seg_data[dtb_off + dtb_sz :]
+                seg_data[:dtb_off] + bytearray(patched) + seg_data[dtb_off + dtb_sz :]
             )
             delta += len(patched) - dtb_sz
             seg_modified = True

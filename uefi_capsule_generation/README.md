@@ -55,6 +55,7 @@ Subcommands wrap the individual tools:
 | `bin-to-hex`            | `BinToHex.py`               |
 | `set-dtb-property`      | `set_dtb_property.py`       |
 | `parse-config`          | `xblconfig_parser.py`       |
+| `patch-uefi-dtbs`       | `patch_uefi_dtbs.py`        |
 
 ### 2.2 Quick start with Make
 
@@ -122,6 +123,10 @@ qcom-capsule-tool bin-to-hex NewRoot.cer NewRoot.inc
 This `NewRoot.inc` contains the cert value, which needs to be provided in the BOOT DT [will be part of `xbl_config.elf`] for QCS6490,QCS9100,QCS8300,QCS615 or in UEFI DT [will be part of `uefi_dtbs.elf`] for IQ-X7181,IQ-X5121,Kaanapali,SM8750,QRB2210-RB1,CQ2390M targets at node
 `/sw/uefi/uefiplat/QcCapsuleRootCert` using QDTE tool.
 
+Alternatively, use the `patch-uefi-dtbs` subcommand (see
+[section 3.3](#33-setting-qccapsulerootcert-without-qdte-for-uefidtbs-targets--iq-x7181-iq-x5121-kaanapali-sm8750-qrb2210-rb1-cq2390m))
+instead of QDTE for uefi_dtbs.elf targets.
+
 For more information on the QDTE Tool, refer to the
 [QDTE Tool documentation][qdte-tool].
 
@@ -173,6 +178,30 @@ As an alternative to QDTE, you can patch the certificate directly into
    qcom-capsule-tool parse-config xbl_config.elf replace \
      <ph_num> out/<post-ddr-dtb>_patched.dtb xbl_config_patched.elf
    ```
+
+### 3.3 Setting QcCapsuleRootCert Without QDTE (for uefi_dtbs targets — IQ-X7181, IQ-X5121, Kaanapali, SM8750, QRB2210-RB1, CQ2390M)
+
+For targets where the capsule root cert lives in `uefi_dtbs.elf` rather than
+`xbl_config.elf`, use the `patch-uefi-dtbs` subcommand:
+
+1. Patch the cert into every DTB inside `uefi_dtbs.elf`:
+
+   ```sh
+   qcom-capsule-tool patch-uefi-dtbs uefi_dtbs.elf QcFMPRoot.inc uefi_dtbs_patched.elf
+   ```
+
+   The tool auto-detects every DTB in the ELF that contains the
+   `QcCapsuleRootCert` node and patches it in place.
+
+1. Compress the patched ELF (required before flashing):
+
+   ```sh
+   xz -c uefi_dtbs_patched.elf > uefi_dtbs.xz
+   ```
+
+For **IQ-X7181**, the `build_capsule_iqx7181.sh` script automates all of the
+above (cert generation, patching, compression, and capsule packaging) in a
+single command — see [`README_IQX7181.md`](README_IQX7181.md).
 
 ## 4. Steps to Generate Capsule Files
 

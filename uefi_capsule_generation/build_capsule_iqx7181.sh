@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
 # Capsule generation script for IQ-X7181
 #
 # Usage:
