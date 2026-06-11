@@ -90,6 +90,13 @@ def _cmd_patch_uefi_dtbs(argv):
     main()
 
 
+def _cmd_patch_capsule_cert(argv):
+    sys.argv = ["qcom-capsule-tool patch-capsule-cert"] + argv
+    from qcom_capsule_tool.patch_capsule_cert import main
+
+    main()
+
+
 SUBCOMMANDS = {
     "setup": ("Set up edk2 build environment", _cmd_setup),
     "create": ("Run the full capsule generation pipeline", _cmd_create),
@@ -106,6 +113,10 @@ SUBCOMMANDS = {
     "patch-uefi-dtbs": (
         "Patch QcCapsuleRootCert in all DTBs of a uefi_dtbs ELF",
         _cmd_patch_uefi_dtbs,
+    ),
+    "patch-capsule-cert": (
+        "Patch QcCapsuleRootCert in a uefi_dtbs or xbl_config ELF (auto-detected)",
+        _cmd_patch_capsule_cert,
     ),
 }
 

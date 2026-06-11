@@ -12,6 +12,16 @@ from typing import List, Tuple
 
 from elftools.elf.elffile import ELFFile
 
+from qcom_capsule_tool.elf_utils import (
+    _ph_file_offset_field,
+    _ph_filesz_field,
+    _ph_memsz_field,
+    _sh_offset_field,
+    _write_ph_field,
+    _write_sh_field,
+    update_elf_headers_for_growth,
+)
+
 # =========================================================
 # Helpers
 # =========================================================
@@ -158,75 +168,8 @@ def parse_metadata_from_ph(
 
 # =========================================================
 # Helpers for patching ELF program / section headers
+# (implementations live in elf_utils; imported above)
 # =========================================================
-
-
-def _ph_file_offset_field(is_64: bool) -> Tuple[int, int]:
-    """Return (field_offset_in_phdr, field_size) for p_offset."""
-    # ELF32: p_offset at byte 4, 4 bytes
-    # ELF64: p_offset at byte 8, 8 bytes
-    if is_64:
-        return 8, 8
-    return 4, 4
-
-
-def _ph_filesz_field(is_64: bool) -> Tuple[int, int]:
-    """Return (field_offset_in_phdr, field_size) for p_filesz."""
-    # ELF32 Phdr layout: type(4) offset(4) vaddr(4) paddr(4) filesz(4) memsz(4) flags(4) align(4)
-    # ELF64 Phdr layout: type(4) flags(4) offset(8) vaddr(8) paddr(8) filesz(8) memsz(8) align(8)
-    if is_64:
-        return 0x20, 8
-    return 0x10, 4
-
-
-def _ph_memsz_field(is_64: bool) -> Tuple[int, int]:
-    if is_64:
-        return 0x28, 8
-    return 0x14, 4
-
-
-def _sh_offset_field(is_64: bool) -> Tuple[int, int]:
-    """Return (field_offset_in_shdr, field_size) for sh_offset."""
-    # ELF32: sh_offset at 16, 4 bytes
-    # ELF64: sh_offset at 24, 8 bytes
-    if is_64:
-        return 24, 8
-    return 16, 4
-
-
-def _pack(endian: str, size: int, value: int) -> bytes:
-    fmt = endian + {4: "I", 8: "Q"}[size]
-    return struct.pack(fmt, value)
-
-
-def _write_ph_field(
-    data: bytearray,
-    elf: ELFFile,
-    seg_idx: int,
-    field_off: int,
-    field_size: int,
-    value: int,
-) -> None:
-    endian = "<" if elf.little_endian else ">"
-    phoff = elf.header["e_phoff"]
-    phentsz = elf.header["e_phentsize"]
-    pos = phoff + seg_idx * phentsz + field_off
-    data[pos : pos + field_size] = _pack(endian, field_size, value)
-
-
-def _write_sh_field(
-    data: bytearray,
-    elf: ELFFile,
-    sec_idx: int,
-    field_off: int,
-    field_size: int,
-    value: int,
-) -> None:
-    endian = "<" if elf.little_endian else ">"
-    shoff = elf.header["e_shoff"]
-    shentsz = elf.header["e_shentsize"]
-    pos = shoff + sec_idx * shentsz + field_off
-    data[pos : pos + field_size] = _pack(endian, field_size, value)
 
 
 # =========================================================
@@ -364,20 +307,7 @@ def replace_ph(
         data[new_tail_start : new_tail_start + len(tail)] = tail
         data.extend(b"\x00" * grow_size)
 
-        off_field, off_field_sz = _ph_file_offset_field(is_64)
-
-        # Shift p_offset for every program header whose content lies after ours
-        for i, seg in enumerate(segments):
-            if seg["p_offset"] > seg_offset:
-                new_off = seg["p_offset"] + grow_size
-                _write_ph_field(data, elf, i, off_field, off_field_sz, new_off)
-
-        # Shift sh_offset for every section header whose content lies after ours
-        sh_off_field, sh_off_field_sz = _sh_offset_field(is_64)
-        for i, sec in enumerate(elf.iter_sections()):
-            if sec["sh_offset"] > seg_offset:
-                new_off = sec["sh_offset"] + grow_size
-                _write_sh_field(data, elf, i, sh_off_field, sh_off_field_sz, new_off)
+        update_elf_headers_for_growth(data, elf, seg_offset, grow_size)
 
     # ----------------------------------------------------------
     # Update p_filesz and p_memsz of the target program header
