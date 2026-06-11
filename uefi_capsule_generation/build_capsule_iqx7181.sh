@@ -43,12 +43,15 @@ UEFI_DTBS_ELF="${UEFI_DTBS_ELF:-${IMAGES_DIR}/uefi_dtbs.elf}"
 UEFI_DTBS_XZ="${UEFI_DTBS_XZ:-${IMAGES_DIR}/uefi_dtbs.xz}"
 UEFI_DTBS_OUT="${UEFI_DTBS_OUT:-${BUILD_DIR}/uefi_dtbs_patched.elf}"
 UEFI_DTBS_XZ_OUT="${UEFI_DTBS_XZ_OUT:-${BUILD_DIR}/uefi_dtbs.xz}"
+# Optional: set XBL_CONFIG_ELF to patch the capsule cert in xbl_config.elf as well.
+XBL_CONFIG_ELF="${XBL_CONFIG_ELF:-${IMAGES_DIR}/xbl_config.elf}"
+XBL_CONFIG_OUT="${XBL_CONFIG_OUT:-${BUILD_DIR}/xbl_config_patched.elf}"
 
 CERT_DIR="${CERT_DIR:-${SCRIPT_DIR}/Certificates}"
 CERT_PEM="${CERT_PEM:-${CERT_DIR}/QcFMPCert.pem}"
 CERT_ROOT_PEM="${CERT_ROOT_PEM:-${CERT_DIR}/QcFMPRoot.pub.pem}"
 CERT_SUB_PEM="${CERT_SUB_PEM:-${CERT_DIR}/QcFMPSub.pub.pem}"
-CERT_ROOT_INC="${CERT_ROOT_INC:-${CERT_DIR}/QcFMPRoot.inc}"
+CERT_ROOT_CER="${CERT_ROOT_CER:-${CERT_DIR}/QcFMPRoot.cer}"
 # Set to 1 to auto-generate a test cert chain when certs are absent (default).
 # Set to 0 (or pass --no-gen-certs) to require real OEM certs.
 GENERATE_TEST_CERTS="${GENERATE_TEST_CERTS:-1}"
@@ -75,13 +78,14 @@ while [[ $# -gt 0 ]]; do
         --images)      IMAGES_DIR="$2"
                        UEFI_DTBS_ELF="${IMAGES_DIR}/uefi_dtbs.elf"
                        UEFI_DTBS_XZ="${IMAGES_DIR}/uefi_dtbs.xz"
+                       XBL_CONFIG_ELF="${IMAGES_DIR}/xbl_config.elf"
                        shift ;;
         --dtbs-xz-out) UEFI_DTBS_XZ_OUT="$2"; shift ;;
         --cert-dir)    CERT_DIR="$2"
                        CERT_PEM="${CERT_DIR}/QcFMPCert.pem"
                        CERT_ROOT_PEM="${CERT_DIR}/QcFMPRoot.pub.pem"
                        CERT_SUB_PEM="${CERT_DIR}/QcFMPSub.pub.pem"
-                       CERT_ROOT_INC="${CERT_DIR}/QcFMPRoot.inc"
+                       CERT_ROOT_CER="${CERT_DIR}/QcFMPRoot.cer"
                        shift ;;
         --edk2-path)   EDK2_DIR="$2"; shift ;;
         --fvupdate)    FVUPDATE_XML="$2"; shift ;;
@@ -113,7 +117,8 @@ while [[ $# -gt 0 ]]; do
             echo "  FW_VERSION, LOWEST_FW_VER, FMP_GUID, CAPSULE_NAME"
             echo "  RUN_SETUP (auto|1|0, default: auto), BUILD_DIR, EDK2_DIR, FVUPDATE_XML, IMAGES_DIR"
             echo "  UEFI_DTBS_ELF, UEFI_DTBS_XZ, UEFI_DTBS_XZ_OUT"
-            echo "  CERT_DIR, CERT_PEM, CERT_ROOT_PEM, CERT_SUB_PEM, CERT_ROOT_INC"
+            echo "  XBL_CONFIG_ELF (optional: patch xbl_config cert too), XBL_CONFIG_OUT"
+            echo "  CERT_DIR, CERT_PEM, CERT_ROOT_PEM, CERT_SUB_PEM, CERT_ROOT_CER"
             echo "  GENERATE_TEST_CERTS (default: 1), CERT_PASSWORD"
             echo "  SETUP_VENV (default: 1), VENV_DIR"
             exit 0
@@ -174,17 +179,17 @@ _print_summary() {
 }
 trap _print_summary EXIT
 
-_step_init "venv"     "Python venv"
-_step_init "certs"    "Certificate chain"
-_step_init "bintohex" "QcFMPRoot.inc"
-_step_init "dtbpatch" "uefi_dtbs patch"
-_step_init "dtbxz"    "uefi_dtbs.xz"
-_step_init "setup"    "edk2 setup"
-_step_init "sysfw"    "SYSFW_VERSION.bin"
-_step_init "fvxml"    "FvUpdate.xml"
-_step_init "fv"       "Firmware Volume"
-_step_init "json"     "config.json"
-_step_init "capsule"  "Capsule (.cap)"
+_step_init "venv"       "Python venv"
+_step_init "certs"      "Certificate chain"
+_step_init "dtbpatch"   "uefi_dtbs patch"
+_step_init "dtbxz"      "uefi_dtbs.xz"
+_step_init "xblpatch"   "xbl_config patch"
+_step_init "setup"      "edk2 setup"
+_step_init "sysfw"      "SYSFW_VERSION.bin"
+_step_init "fvxml"      "FvUpdate.xml"
+_step_init "fv"         "Firmware Volume"
+_step_init "json"       "config.json"
+_step_init "capsule"    "Capsule (.cap)"
 
 # ---- Resolve Python interpreter and set up module path --------------
 
@@ -303,17 +308,10 @@ else
   Or re-run without --no-gen-certs to auto-generate a test chain."
 fi
 
-[ -f "${CERT_PEM}" ]     || error "Certificate not found: ${CERT_PEM}"
-[ -f "${CERT_ROOT_PEM}" ]|| error "Root cert not found: ${CERT_ROOT_PEM}"
-[ -f "${CERT_SUB_PEM}" ] || error "Sub cert not found: ${CERT_SUB_PEM}"
-
-# ---- Generate QcFMPRoot.inc -----------------------------------------
-
-_step_start "bintohex"
-info "--- Generating QcFMPRoot.inc from QcFMPRoot.cer ---"
-${QCT} bin-to-hex "${CERT_DIR}/QcFMPRoot.cer" "${CERT_ROOT_INC}"
-info "Generated: ${CERT_ROOT_INC}"
-_step_ok "bintohex"
+[ -f "${CERT_PEM}" ]      || error "Certificate not found: ${CERT_PEM}"
+[ -f "${CERT_ROOT_PEM}" ] || error "Root cert not found: ${CERT_ROOT_PEM}"
+[ -f "${CERT_SUB_PEM}" ]  || error "Sub cert not found: ${CERT_SUB_PEM}"
+[ -f "${CERT_ROOT_CER}" ] || error "Root DER cert not found: ${CERT_ROOT_CER}"
 
 mkdir -p "${BUILD_DIR}"
 
@@ -339,7 +337,7 @@ if [[ "${_STEP_STATUS[dtbpatch]}" != "SKIPPED" ]]; then
     info "--- Patching uefi_dtbs.elf ---"
     info "  Input : ${UEFI_DTBS_ELF}"
     info "  Output: ${UEFI_DTBS_OUT}"
-    ${QCT} patch-uefi-dtbs "${UEFI_DTBS_ELF}" "${CERT_ROOT_INC}" "${UEFI_DTBS_OUT}"
+    ${QCT} patch-capsule-cert "${UEFI_DTBS_ELF}" "${CERT_ROOT_CER}" "${UEFI_DTBS_OUT}"
     info "Patched ELF: ${UEFI_DTBS_OUT}"
     _step_ok "dtbpatch"
 fi
@@ -356,6 +354,23 @@ if [[ -f "${UEFI_DTBS_OUT}" ]]; then
 else
     _step_skip "dtbxz"
 fi
+
+# ---- Patch xbl_config ----------------------------------------
+
+_step_start "xblpatch"
+if [[ -f "${XBL_CONFIG_ELF}" ]]; then
+    info "--- Patching xbl_config.elf ---"
+    info "  Input : ${XBL_CONFIG_ELF}"
+    info "  Output: ${XBL_CONFIG_OUT}"
+    ${QCT} patch-capsule-cert "${XBL_CONFIG_ELF}" "${CERT_ROOT_CER}" "${XBL_CONFIG_OUT}"
+    cp "${XBL_CONFIG_OUT}" "${BUILD_DIR}/xbl_config.elf"
+    info "Patched ELF: ${XBL_CONFIG_OUT} (also copied to ${BUILD_DIR}/xbl_config.elf)"
+    _step_ok "xblpatch"
+else
+    info "--- xbl_config.elf not found in ${IMAGES_DIR}, skipping ---"
+    _step_skip "xblpatch"
+fi
+
 cd "${BUILD_DIR}"
 
 # ---- Step 1: Setup edk2 (optional) ----------------------------------

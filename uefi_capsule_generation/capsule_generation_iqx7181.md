@@ -13,9 +13,9 @@ stage in order:
 |------|-------------|
 | Python venv | Creates/reuses an isolated venv, installs `requests pyelftools pylibfdt` |
 | Certificate chain | Auto-generates a test chain **or** uses existing OEM certs |
-| QcFMPRoot.inc | Converts `QcFMPRoot.cer` (DER) → hex `.inc` for cert patching |
 | uefi\_dtbs patch | Injects the new root cert into every DTB inside `uefi_dtbs.elf` |
 | uefi\_dtbs compress | Compresses the patched ELF → `uefi_dtbs.xz` (configurable name) |
+| xbl\_config patch | Injects the new root cert into `xbl_config.elf` (if present in `Images/`) |
 | edk2 setup | Clones edk2 (shallow) and builds `GenFfs` / `GenFv` |
 | SYSFW\_VERSION.bin | Generates the firmware version binary |
 | FvUpdate.xml | Copies your `FvUpdate.xml` into the build directory |
@@ -133,11 +133,13 @@ line always wins.
 | `UEFI_DTBS_XZ` | Path to the input `uefi_dtbs.xz` (overrides `IMAGES_DIR/uefi_dtbs.xz`) |
 | `UEFI_DTBS_OUT` | Path for the intermediate patched ELF (`BUILD_DIR/uefi_dtbs_patched.elf`) |
 | `UEFI_DTBS_XZ_OUT` | `--dtbs-xz-out` |
+| `XBL_CONFIG_ELF` | Path to the input `xbl_config.elf` (overrides `IMAGES_DIR/xbl_config.elf`); patch step skipped if file absent |
+| `XBL_CONFIG_OUT` | Path for the patched xbl_config ELF (`BUILD_DIR/xbl_config_patched.elf`) |
 | `CERT_DIR` | `--cert-dir` |
 | `CERT_PEM` | Path to leaf cert (overrides `CERT_DIR/QcFMPCert.pem`) |
 | `CERT_ROOT_PEM` | Path to root public cert (overrides `CERT_DIR/QcFMPRoot.pub.pem`) |
 | `CERT_SUB_PEM` | Path to sub public cert (overrides `CERT_DIR/QcFMPSub.pub.pem`) |
-| `CERT_ROOT_INC` | Path to root `.inc` hex file (overrides `CERT_DIR/QcFMPRoot.inc`) |
+| `CERT_ROOT_CER` | Path to root DER cert (overrides `CERT_DIR/QcFMPRoot.cer`) |
 | `GENERATE_TEST_CERTS` | `1` = auto-generate test chain; `0` = same as `--no-gen-certs` |
 | `CERT_PASSWORD` | Password for test cert key files (default: `testpassword`) |
 | `SETUP_VENV` | `1` = create venv (default); `0` = same as `--no-venv` |
@@ -236,10 +238,9 @@ On first run, if `Certificates/QcFMPCert.pem` is absent and
 `Certificates/`:
 
 ```
-QcFMPRoot.key / .crt / .cer / .pub.pem   ← Root CA
-QcFMPSub.key  / .crt / .pub.pem          ← Intermediate CA
-QcFMPCert.key / .crt / .pem              ← Leaf signing cert
-QcFMPRoot.inc                            ← Hex array for DTB patching
+QcFMPRoot.key / .crt / .cer / .pub.pem   <- Root CA
+QcFMPSub.key  / .crt / .pub.pem          <- Intermediate CA
+QcFMPCert.key / .crt / .pem              <- Leaf signing cert
 ```
 
 Test certs are re-used on subsequent runs. The cert password defaults to
@@ -256,7 +257,7 @@ Test certs are re-used on subsequent runs. The cert password defaults to
    | `QcFMPCert.pem` | Leaf cert + unencrypted private key, concatenated (PEM) |
    | `QcFMPRoot.pub.pem` | Root CA public cert (PEM) |
    | `QcFMPSub.pub.pem` | Sub CA public cert (PEM) |
-   | `QcFMPRoot.cer` | Root CA cert (DER) — used to generate `QcFMPRoot.inc` |
+   | `QcFMPRoot.cer` | Root CA cert (DER) — used directly for cert patching |
 
 ---
 
@@ -273,7 +274,7 @@ automatically:
 5. Scan every ELF segment for concatenated DTBs (magic `0xD00DFEED`)
 6. For each DTB containing `QcCapsuleRootCert`, auto-detect the node path
    (supports both regular `/sw/uefi/uefiplat` and overlay fragment layouts)
-7. Patch the property value from `QcFMPRoot.inc`; update the embedded SHA-384
+7. Patch the property value from `QcFMPRoot.cer`; update the embedded SHA-384
 8. Write patched ELF to `BUILD_DIR/uefi_dtbs_patched.elf`
 9. Compress to `UEFI_DTBS_XZ_OUT` (default: `BUILD_DIR/uefi_dtbs.xz`)
 
@@ -299,8 +300,10 @@ All artifacts are written to `BUILD_DIR` (default `build/iqx7181/`):
 
 | File | Description |
 |------|-------------|
-| `uefi_dtbs_patched.elf` | Patched (cert-injected) ELF |
+| `uefi_dtbs_patched.elf` | Patched (cert-injected) uefi_dtbs ELF |
 | `uefi_dtbs.xz` | Compressed patched ELF — payload for capsule |
+| `xbl_config_patched.elf` | Patched xbl_config ELF (produced if `Images/xbl_config.elf` present) |
+| `xbl_config.elf` | Copy of `xbl_config_patched.elf` (convenience alias) |
 | `SYSFW_VERSION.bin` | Firmware version structure |
 | `FvUpdate.xml` | Copy of your input XML |
 | `firmware.fv` | Firmware Volume containing all payloads |
@@ -355,7 +358,7 @@ directly for debugging or individual steps.
 
 | Subcommand | Description |
 |------------|-------------|
-| `patch-uefi-dtbs <elf> <cert.inc> <out.elf>` | Patch `QcCapsuleRootCert` in all DTBs of a uefi_dtbs ELF |
+| `patch-capsule-cert <elf> <cert.cer> <out.elf>` | Patch `QcCapsuleRootCert` in a `uefi_dtbs` or `xbl_config` ELF (auto-detected) |
 | `bin-to-hex <input.cer> <output.inc>` | Convert DER cert to hex `.inc` array |
 | `sysfw-version-create -Gen -FwVer X -LFwVer Y -O out.bin` | Generate `SYSFW_VERSION.bin` |
 | `fv-create <out.fv> -FvType SYS_FW <xml> <ver.bin> <img_dir> --edk2-path <dir>` | Build Firmware Volume |
