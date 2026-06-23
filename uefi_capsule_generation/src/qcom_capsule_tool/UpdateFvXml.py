@@ -227,6 +227,14 @@ def main():
         help="Path to an existing qcom-ptool directory; "
         "when provided, the repository is not cloned",
     )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        metavar="PARTITION",
+        default=None,
+        help="Only emit FwEntry blocks for these partition base names "
+        "(e.g. --only dtb). By default every partition pair is emitted.",
+    )
     args = parser.parse_args()
 
     repo_dir = args.ptool_path if args.ptool_path else DEFAULT_REPO_DIR
@@ -271,6 +279,18 @@ def main():
 
     partition_info = parse_partition_info(args, lines, args.StorageType)
     pairs = find_base_names(partition_info)
+    if args.only:
+        wanted = set(args.only)
+        found = {base for base, _, _ in pairs}
+        missing = wanted - found
+        if missing:
+            print(
+                "Error: --only requested partition(s) not found: "
+                f"{', '.join(sorted(missing))}. Available: "
+                f"{', '.join(sorted(found))}."
+            )
+            sys.exit(1)
+        pairs = [p for p in pairs if p[0] in wanted]
     if not pairs:
         print(
             "Warning: No partition pairs (_a/_b or _BACKUP) found. FvUpdate.xml will not contain FwEntry blocks."
