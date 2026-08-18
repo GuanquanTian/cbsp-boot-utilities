@@ -244,8 +244,9 @@ info "BUILD_DIR    : ${BUILD_DIR}"
 # ---- Certificate chain ----------------------------------------------
 
 certs_complete() {
-    [[ -f "${CERT_PEM}" && -f "${CERT_ROOT_PEM}" && -f "${CERT_SUB_PEM}" \
-       && -f "${CERT_DIR}/QcFMPRoot.cer" ]]
+    # QcFMPRoot.cer (DER) is not checked here: it is byte-equivalent to
+    # QcFMPRoot.pub.pem (PEM) and is derived from it further below if absent.
+    [[ -f "${CERT_PEM}" && -f "${CERT_ROOT_PEM}" && -f "${CERT_SUB_PEM}" ]]
 }
 
 _step_start "certs"
@@ -314,14 +315,21 @@ else
     QcFMPCert.pem     (leaf cert + unencrypted private key, PEM)
     QcFMPRoot.pub.pem (root CA public cert, PEM)
     QcFMPSub.pub.pem  (sub CA public cert, PEM)
-    QcFMPRoot.cer     (root CA cert, DER)
   Or re-run without --no-gen-certs to auto-generate a test chain."
 fi
 
 [ -f "${CERT_PEM}" ]      || error "Certificate not found: ${CERT_PEM}"
 [ -f "${CERT_ROOT_PEM}" ] || error "Root cert not found: ${CERT_ROOT_PEM}"
 [ -f "${CERT_SUB_PEM}" ]  || error "Sub cert not found: ${CERT_SUB_PEM}"
-[ -f "${CERT_ROOT_CER}" ] || error "Root DER cert not found: ${CERT_ROOT_CER}"
+
+# QcFMPRoot.cer (DER) is only consumed below by patch-capsule-cert, which
+# itself only runs when uefi_dtbs/xbl_config inputs are present. Derive it
+# on demand from QcFMPRoot.pub.pem (same certificate, PEM vs DER encoding)
+# instead of requiring callers to hand-carry a redundant file.
+if [[ ! -f "${CERT_ROOT_CER}" ]]; then
+    info "Deriving ${CERT_ROOT_CER} (DER) from ${CERT_ROOT_PEM} (PEM)"
+    openssl x509 -in "${CERT_ROOT_PEM}" -out "${CERT_ROOT_CER}" -outform DER
+fi
 
 mkdir -p "${BUILD_DIR}"
 
